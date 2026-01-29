@@ -39,7 +39,7 @@ document.getElementById("createBtn").onclick = () => {
 
   console.log("Sending to bot:", payload);
 
-  fetch("https://lisovaia.app.n8n.cloud/webhook/telegram-miniapp", {
+  fetch("https://lisovaia.app.n8n.cloud/webhook-test/telegram-dl-miniapp", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
