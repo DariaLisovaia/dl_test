@@ -1,7 +1,15 @@
 const tg = window.Telegram.WebApp;
+
 tg.ready();
 tg.expand();
 
+// Проверка, что открыто из Telegram
+if (!tg.initDataUnsafe || !tg.initDataUnsafe.user) {
+  alert("Open this app from Telegram");
+  throw new Error("Not opened from Telegram");
+}
+
+// language from URL
 const params = new URLSearchParams(window.location.search);
 const lang = params.get('lang') || 'en';
 
@@ -22,11 +30,15 @@ document.getElementById("createBtn").innerText = i18n[lang].button;
 document.getElementById("createBtn").onclick = () => {
   const genre = document.getElementById("genre").value;
 
-  tg.sendData(JSON.stringify({
+  const payload = {
     action: "create_story",
     genre,
-    lang
-  }));
+    lang,
+    user_id: tg.initDataUnsafe.user.id
+  };
 
+  console.log("Sending to bot:", payload);
+
+  tg.sendData(JSON.stringify(payload));
   tg.close();
 };
