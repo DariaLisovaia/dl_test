@@ -1,20 +1,1764 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <title>Story Creator</title>
+  <meta charset="UTF-8" />
+  <title>Storybook Mini App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #0f172a;
+    }
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      min-height: 100vh;
+      background: radial-gradient(circle at 10% 20%, #c2f0ff 0, #9de1ff 25%, #77cffc 60%, #5ab8f5 100%);
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* декоративные пузыри на фоне (не анимированные) */
+    .decor-bubbles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -1;
+    }
+    .decor-bubble {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.9), rgba(255,255,255,0));
+      border: 1px solid rgba(255,255,255,0.9);
+      opacity: 0.55;
+      filter: blur(0.5px);
+    }
+    .decor-bubble--1 { width: 140px; height: 140px; top: 6%;  left: 6%; }
+    .decor-bubble--2 { width: 110px; height: 110px; top: 18%; right: 10%; }
+    .decor-bubble--3 { width: 90px;  height: 90px;  bottom: 18%; left: 15%; }
+    .decor-bubble--4 { width: 160px; height: 160px; bottom: -30px; right: -10px; opacity: 0.4; }
+    .decor-bubble--5 { width: 70px;  height: 70px;  top: 50%; left: 55%; opacity: 0.45; }
+
+    .container { max-width: 480px; margin: 0 auto; }
+
+    .bubble-card {
+      background: radial-gradient(circle at 20% 20%, rgba(255,255,255,0.95), rgba(255,255,255,0.78));
+      border-radius: 32px;
+      padding: 18px 16px 20px;
+      box-shadow:
+        0 18px 40px rgba(15,23,42,0.35),
+        0 0 0 1px rgba(255,255,255,0.7);
+      backdrop-filter: blur(12px);
+    }
+
+    .hero {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .hero-illustration {
+      width: 84px;
+      height: 84px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 20%, #ffe0f2 0, #ffb6dd 45%, #ff9fd6 80%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow:
+        0 8px 18px rgba(244,114,182,0.5),
+        0 0 0 3px rgba(255,255,255,0.8);
+      overflow: hidden;
+    }
+    .hero-emoji { font-size: 40px; line-height: 1; transform: translateY(2px); }
+
+    .hero-text { flex: 1; min-width: 0; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    p.description { font-size: 13px; margin: 0; color: #4b5563; }
+
+    .lang-switch {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .lang-btn {
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.8);
+      background: rgba(255,255,255,0.9);
+      padding: 4px 12px;
+      font-size: 11px;
+      cursor: pointer;
+      box-shadow: 0 3px 6px rgba(15,23,42,0.15);
+      transition: all 0.18s ease;
+      color: #000000;
+    }
+    .lang-btn--active {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #000000;
+      border-color: transparent;
+      box-shadow:
+        0 4px 10px rgba(79,70,229,0.55),
+        0 0 0 1px rgba(255,255,255,0.8) inset;
+    }
+
+    form { margin-top: 10px; }
+
+    .field {
+      margin-bottom: 12px;
+      padding: 8px 10px 10px;
+      border-radius: 18px;
+      background: radial-gradient(circle at 15% 10%, rgba(255,255,255,0.98), rgba(255,255,255,0.78));
+      box-shadow:
+        0 6px 12px rgba(15,23,42,0.12),
+        0 0 0 1px rgba(255,255,255,0.85);
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 6px;
+      color: #334155;
+    }
+
+    .field-hint {
+      display: block;
+      margin-top: 6px;
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 7px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.7);
+      font-size: 13px;
+      outline: none;
+      background: rgba(255,255,255,0.9);
+      box-shadow: 0 2px 4px rgba(15,23,42,0.05) inset;
+    }
+    textarea { border-radius: 18px; resize: vertical; min-height: 60px; }
+    input::placeholder, textarea::placeholder { color: #9ca3af; }
+    input:focus, select:focus, textarea:focus {
+      border-color: #6366f1;
+      box-shadow:
+        0 0 0 1px rgba(129,140,248,0.6),
+        0 0 0 4px rgba(129,140,248,0.26);
+      background: #ffffff;
+    }
+
+    /* Квадратные кнопки-режимы */
+    .mode-grid {
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .mode-grid--3 { grid-template-columns: repeat(3, 1fr); }
+    .mode-grid--2 { grid-template-columns: repeat(2, 1fr); }
+
+    .mode-tile {
+      border: 1px solid rgba(148,163,184,0.75);
+      background: rgba(255,255,255,0.92);
+      border-radius: 16px;
+      padding: 10px;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+      box-shadow: 0 4px 10px rgba(15,23,42,0.10);
+      text-align: center;
+      color: #0f172a;
+      aspect-ratio: 1 / 1;         /* квадрат */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mode-tile:active { transform: translateY(1px); }
+    .mode-tile--active {
+      border-color: rgba(99,102,241,0.9);
+      box-shadow:
+        0 8px 18px rgba(79,70,229,0.25),
+        0 0 0 1px rgba(255,255,255,0.9) inset;
+      background: radial-gradient(circle at 20% 20%, rgba(199,210,254,0.95), rgba(255,255,255,0.88));
+    }
+    .mode-tile__icon { font-size: 18px; line-height: 1; }
+    .mode-tile__title { font-size: 12px; line-height: 1.15; font-weight: 600; }
+
+    /* Выделенная цветом зона, когда раскрывается выбор */
+    .subpanel {
+      margin-top: 10px;
+      border-radius: 18px;
+      padding: 10px;
+      background: radial-gradient(circle at 15% 10%, rgba(254,243,199,0.92), rgba(255,255,255,0.70));
+      border: 1px solid rgba(245,158,11,0.45);
+      box-shadow:
+        0 10px 18px rgba(15,23,42,0.10),
+        0 0 0 1px rgba(255,255,255,0.85) inset;
+    }
+    .subpanel--purple {
+      background: radial-gradient(circle at 15% 10%, rgba(233,213,255,0.92), rgba(255,255,255,0.72));
+      border: 1px solid rgba(168,85,247,0.35);
+    }
+    .subpanel__title {
+      font-size: 12px;
+      font-weight: 700;
+      margin: 0 0 8px;
+      color: #111827;
+    }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .grid-1 { display: grid; grid-template-columns: 1fr; gap: 10px; }
+
+    /* Пресеты (6 вариантов) */
+    .preset-grid {
+      display: grid;
+      gap: 10px;
+    }
+    .preset-grid--2 { grid-template-columns: repeat(2, 1fr); }
+
+    .preset-btn {
+      border: 1px solid rgba(148,163,184,0.75);
+      background: rgba(255,255,255,0.92);
+      border-radius: 16px;
+      padding: 10px;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+      box-shadow: 0 4px 10px rgba(15,23,42,0.10);
+      text-align: left;
+      color: #0f172a;
+      min-height: 54px;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .preset-btn:active { transform: translateY(1px); }
+    .preset-btn--active {
+      border-color: rgba(99,102,241,0.9);
+      box-shadow:
+        0 8px 18px rgba(79,70,229,0.25),
+        0 0 0 1px rgba(255,255,255,0.9) inset;
+      background: radial-gradient(circle at 20% 20%, rgba(199,210,254,0.95), rgba(255,255,255,0.88));
+    }
+    .preset-title { font-weight: 700; font-size: 12px; margin: 0 0 2px; }
+    .preset-desc { font-size: 11px; margin: 0; color: #475569; }
+
+    button[type="submit"] {
+      width: 100%;
+      padding: 11px 16px;
+      border-radius: 999px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      background: radial-gradient(circle at 20% 0, #a5b4fc, #6366f1);
+      color: #ffffff;
+      box-shadow:
+        0 10px 20px rgba(79,70,229,0.55),
+        0 0 0 1px rgba(255,255,255,0.9) inset;
+      margin-top: 4px;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+    }
+    button[type="submit"]:active {
+      transform: translateY(1px);
+      box-shadow:
+        0 6px 14px rgba(79,70,229,0.55),
+        0 0 0 1px rgba(255,255,255,0.9) inset;
+      filter: brightness(0.98);
+    }
+    button[type="submit"]:disabled {
+      opacity: 0.7;
+      cursor: default;
+      box-shadow:
+        0 4px 8px rgba(148,163,184,0.5),
+        0 0 0 1px rgba(255,255,255,0.9) inset;
+    }
+
+    .note {
+      font-size: 11px;
+      color: #475569;
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    .hidden { display: none !important; }
+
+    .inline-alert {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 14px;
+      font-size: 11px;
+      background: rgba(254,226,226,0.85);
+      border: 1px solid rgba(239,68,68,0.35);
+      color: #7f1d1d;
+    }
+  </style>
 </head>
+
 <body>
-  <h1 id="title"></h1>
+  <div class="decor-bubbles">
+    <span class="decor-bubble decor-bubble--1"></span>
+    <span class="decor-bubble decor-bubble--2"></span>
+    <span class="decor-bubble decor-bubble--3"></span>
+    <span class="decor-bubble decor-bubble--4"></span>
+    <span class="decor-bubble decor-bubble--5"></span>
+  </div>
 
-  <select id="genre">
-    <option value="fantasy">Fantasy</option>
-    <option value="kids">Kids</option>
-  </select>
+  <main class="container">
+    <div class="bubble-card">
+      <div class="lang-switch">
+        <button type="button" class="lang-btn" id="btnLangRu" data-lang="ru">RU</button>
+        <button type="button" class="lang-btn" id="btnLangEn" data-lang="en">EN</button>
+      </div>
 
-  <button id="createBtn"></button>
+      <div class="hero">
+        <div class="hero-illustration">
+          <span class="hero-emoji">📖</span>
+        </div>
+        <div class="hero-text">
+          <h1 id="title" data-i18n="title">Создать сказку</h1>
+          <p class="description" id="description" data-i18n="description">
+            Заполните параметры — бот сгенерирует персональную сказку и отправит её в чат в виде PDF-книги.
+          </p>
+        </div>
+      </div>
 
-  <script src="app.js"></script>
+      <form id="storyForm">
+        <!-- P.1 -->
+        <div class="field">
+          <label for="main_hero_name" data-i18n="main_hero_name_label">Имя главного героя *</label>
+          <input id="main_hero_name" name="main_hero_name" required />
+        </div>
+
+        <!-- P.2 main hero appearance mode -->
+        <div class="field" id="mainHeroAppearanceBlock">
+          <label data-i18n="main_hero_appearance_label">Внешность главного героя *</label>
+
+          <div class="mode-grid mode-grid--3" id="mainHeroModeTiles">
+            <button type="button" class="mode-tile" data-mode="photo">
+              <div class="mode-tile__icon">📷</div>
+              <div class="mode-tile__title" data-i18n="mode_photo">Загрузить фото</div>
+            </button>
+            <button type="button" class="mode-tile" data-mode="select">
+              <div class="mode-tile__icon">🧩</div>
+              <div class="mode-tile__title" data-i18n="mode_select_appearance">Выбрать внешность</div>
+            </button>
+            <button type="button" class="mode-tile" data-mode="auto">
+              <div class="mode-tile__icon">✨</div>
+              <div class="mode-tile__title" data-i18n="mode_auto">Предложить</div>
+            </button>
+          </div>
+
+          <div class="inline-alert hidden" id="photoAlertMain" data-i18n="photo_alert_main">
+            После отправки формы бот попросит прислать фото в чате.
+          </div>
+
+          <div class="subpanel subpanel--purple hidden" id="mainHeroSelectPanel">
+            <p class="subpanel__title" data-i18n="appearance_panel_title">Параметры внешности</p>
+
+            <div class="grid-2">
+              <div>
+                <label for="age_years" data-i18n="age_years_label">Возраст (цифрой)</label>
+                <input id="age_years" name="age_years" inputmode="numeric" placeholder="4" />
+              </div>
+              <div>
+                <label for="gender" data-i18n="gender_label">Пол</label>
+                <select id="gender" name="gender">
+                  <option value="boy" data-i18n="gender_boy">Мальчик</option>
+                  <option value="girl" data-i18n="gender_girl">Девочка</option>
+                  <option value="unspecified" data-i18n="gender_unspecified">Не указывать</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top:10px;">
+              <div>
+                <label for="skin_tone" data-i18n="skin_tone_label">Тон кожи</label>
+                <select id="skin_tone" name="skin_tone">
+                  <option value="very_light" data-i18n="skin_very_light">Очень светлый</option>
+                  <option value="light" data-i18n="skin_light">Светлый</option>
+                  <option value="medium" data-i18n="skin_medium">Средний</option>
+                  <option value="tan" data-i18n="skin_tan">Смуглый</option>
+                  <option value="dark" data-i18n="skin_dark">Тёмный</option>
+                </select>
+              </div>
+              <div>
+                <label for="face_shape" data-i18n="face_shape_label">Форма лица</label>
+                <select id="face_shape" name="face_shape">
+                  <option value="round" data-i18n="face_round">Круглое</option>
+                  <option value="oval" data-i18n="face_oval">Овальное</option>
+                  <option value="long" data-i18n="face_long">Удлинённое</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-1" style="margin-top:10px;">
+              <div>
+                <label for="face_accent" data-i18n="face_accent_label">Акцент лица (текст)</label>
+                <input id="face_accent" name="face_accent" maxlength="60" />
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top:10px;">
+              <div>
+                <label for="eyes_color" data-i18n="eyes_color_label">Глаза: цвет</label>
+                <select id="eyes_color" name="eyes_color">
+                  <option value="brown" data-i18n="eyes_brown">Карие</option>
+                  <option value="blue" data-i18n="eyes_blue">Голубые</option>
+                  <option value="gray" data-i18n="eyes_gray">Серые</option>
+                  <option value="green" data-i18n="eyes_green">Зелёные</option>
+                  <option value="hazel" data-i18n="eyes_hazel">Ореховые</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+              <div>
+                <label for="eyes_shape" data-i18n="eyes_shape_label">Глаза: форма</label>
+                <select id="eyes_shape" name="eyes_shape">
+                  <option value="round" data-i18n="eyes_shape_round">Круглые</option>
+                  <option value="almond" data-i18n="eyes_shape_almond">Миндалевидные</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top:10px;">
+              <div>
+                <label for="eyes_size" data-i18n="eyes_size_label">Глаза: размер</label>
+                <select id="eyes_size" name="eyes_size">
+                  <option value="small" data-i18n="size_small">Небольшие</option>
+                  <option value="medium" data-i18n="size_medium">Средние</option>
+                  <option value="large" data-i18n="size_large">Крупные</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+              <div>
+                <label for="nose" data-i18n="nose_label">Нос</label>
+                <select id="nose" name="nose">
+                  <option value="small" data-i18n="nose_small">Маленький</option>
+                  <option value="medium" data-i18n="nose_medium">Средний</option>
+                  <option value="prominent" data-i18n="nose_prominent">Выраженный</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top:10px;">
+              <div>
+                <label for="lips" data-i18n="lips_label">Губы</label>
+                <select id="lips" name="lips">
+                  <option value="thin" data-i18n="lips_thin">Тонкие</option>
+                  <option value="medium" data-i18n="lips_medium">Средние</option>
+                  <option value="full" data-i18n="lips_full">Пухлые</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+              <div>
+                <label for="body_type" data-i18n="body_type_label">Телосложение</label>
+                <select id="body_type" name="body_type">
+                  <option value="slim" data-i18n="body_slim">Худощавое</option>
+                  <option value="average" data-i18n="body_average">Среднее</option>
+                  <option value="chubby" data-i18n="body_chubby">Пухленькое</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top:10px;">
+              <div>
+                <label for="height_vs_peers" data-i18n="height_vs_peers_label">Рост относительно сверстников</label>
+                <select id="height_vs_peers" name="height_vs_peers">
+                  <option value="shorter" data-i18n="height_shorter">Ниже</option>
+                  <option value="average" data-i18n="height_average">Средний</option>
+                  <option value="taller" data-i18n="height_taller">Выше</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+              <div>
+                <label for="hair_color" data-i18n="hair_color_label">Волосы: цвет</label>
+                <select id="hair_color" name="hair_color">
+                  <option value="blond" data-i18n="hair_blond">Блонд</option>
+                  <option value="light_brown" data-i18n="hair_light_brown">Русые</option>
+                  <option value="chestnut" data-i18n="hair_chestnut">Каштановые</option>
+                  <option value="dark" data-i18n="hair_dark">Тёмные</option>
+                  <option value="red" data-i18n="hair_red">Рыжие</option>
+                  <option value="black" data-i18n="hair_black">Чёрные</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top:10px;">
+              <div>
+                <label for="hair_length" data-i18n="hair_length_label">Волосы: длина</label>
+                <select id="hair_length" name="hair_length">
+                  <option value="very_short" data-i18n="hair_very_short">Очень короткие</option>
+                  <option value="short" data-i18n="hair_short">Короткие</option>
+                  <option value="shoulder" data-i18n="hair_shoulder">До плеч</option>
+                  <option value="long" data-i18n="hair_long">Длинные</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+              <div>
+                <label for="hair_type" data-i18n="hair_type_label">Волосы: тип</label>
+                <select id="hair_type" name="hair_type">
+                  <option value="straight" data-i18n="hair_straight">Прямые</option>
+                  <option value="wavy" data-i18n="hair_wavy">Волнистые</option>
+                  <option value="curly" data-i18n="hair_curly">Кудрявые</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top:10px;">
+              <div>
+                <label for="hair_density" data-i18n="hair_density_label">Волосы: густота</label>
+                <select id="hair_density" name="hair_density">
+                  <option value="thin" data-i18n="density_thin">Редкие</option>
+                  <option value="medium" data-i18n="density_medium">Средние</option>
+                  <option value="thick" data-i18n="density_thick">Густые</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+              <div>
+                <label for="bangs" data-i18n="bangs_label">Чёлка</label>
+                <select id="bangs" name="bangs">
+                  <option value="yes" data-i18n="yes">Есть</option>
+                  <option value="no" data-i18n="no">Нет</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top:10px;">
+              <div>
+                <label for="parting" data-i18n="parting_label">Пробор</label>
+                <select id="parting" name="parting">
+                  <option value="left" data-i18n="parting_left">Слева</option>
+                  <option value="right" data-i18n="parting_right">Справа</option>
+                  <option value="center" data-i18n="parting_center">По центру</option>
+                  <option value="unspecified" data-i18n="unspecified">Не указывать</option>
+                </select>
+              </div>
+              <div>
+                <label for="signature_look" data-i18n="signature_look_label">Фирменный образ (текст)</label>
+                <input id="signature_look" name="signature_look" maxlength="160" />
+              </div>
+            </div>
+
+            <div class="grid-1" style="margin-top:10px;">
+              <div>
+                <label for="special_features" data-i18n="special_features_label">Особенности (опц.)</label>
+                <input id="special_features" name="special_features" maxlength="160" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- P.3 second hero name -->
+        <div class="field">
+          <label for="second_hero_name" data-i18n="second_hero_name_label">Имя второго героя (опционально)</label>
+          <input id="second_hero_name" name="second_hero_name" />
+          <span class="field-hint" data-i18n="second_hero_name_hint">Если не нужен второй герой — оставьте поле пустым.</span>
+        </div>
+
+        <!-- P.4 second hero mode -->
+        <div class="field" id="secondHeroBlock">
+          <label data-i18n="second_hero_mode_label">Второй герой: вариант (если задано имя)</label>
+
+          <div class="mode-grid mode-grid--3" id="secondHeroModeTiles">
+            <button type="button" class="mode-tile" data-mode="preset">
+              <div class="mode-tile__icon">🦊</div>
+              <div class="mode-tile__title" data-i18n="mode_second_preset">Выбрать из 6</div>
+            </button>
+            <button type="button" class="mode-tile" data-mode="custom">
+              <div class="mode-tile__icon">✍️</div>
+              <div class="mode-tile__title" data-i18n="mode_second_custom">Персональный</div>
+            </button>
+            <button type="button" class="mode-tile" data-mode="photo">
+              <div class="mode-tile__icon">📷</div>
+              <div class="mode-tile__title" data-i18n="mode_photo">Загрузить фото</div>
+            </button>
+          </div>
+
+          <div class="inline-alert hidden" id="photoAlertSecond" data-i18n="photo_alert_second">
+            После отправки формы бот попросит прислать фото второго героя в чате.
+          </div>
+
+          <!-- second hero preset (Table 3) -->
+          <div class="subpanel hidden" id="secondHeroPresetPanel">
+            <p class="subpanel__title" data-i18n="second_hero_preset_title">Выберите персонажа</p>
+            <div class="preset-grid preset-grid--2" id="secondHeroPresetGrid">
+              <button type="button" class="preset-btn" data-second-preset="foxik">
+                <p class="preset-title" data-i18n="second_preset_foxik_title">Лисёнок Фоксик</p>
+                <p class="preset-desc" data-i18n="second_preset_foxik_desc">Любит загадки и всегда предлагает план А и план Б.</p>
+              </button>
+              <button type="button" class="preset-btn" data-second-preset="tikhonya">
+                <p class="preset-title" data-i18n="second_preset_tikhonya_title">Сова Тихоня</p>
+                <p class="preset-desc" data-i18n="second_preset_tikhonya_desc">Спокойная, объясняет сложное простыми словами.</p>
+              </button>
+              <button type="button" class="preset-btn" data-second-preset="bublik">
+                <p class="preset-title" data-i18n="second_preset_bublik_title">Щенок Бублик</p>
+                <p class="preset-desc" data-i18n="second_preset_bublik_desc">Добрый и верный; поддержит, когда страшно или обидно.</p>
+              </button>
+              <button type="button" class="preset-btn" data-second-preset="pixel">
+                <p class="preset-title" data-i18n="second_preset_pixel_title">Робот Пиксель</p>
+                <p class="preset-desc" data-i18n="second_preset_pixel_desc">Изобретательный помощник: карты, счёт, полезные устройства.</p>
+              </button>
+              <button type="button" class="preset-btn" data-second-preset="iskrik">
+                <p class="preset-title" data-i18n="second_preset_iskrik_title">Дракончик Искрик</p>
+                <p class="preset-desc" data-i18n="second_preset_iskrik_desc">Маленький и безобидный: «согревает» смелость и настроение.</p>
+              </button>
+              <button type="button" class="preset-btn" data-second-preset="puzyrek">
+                <p class="preset-title" data-i18n="second_preset_puzyrek_title">Морской конёк Пузырёк</p>
+                <p class="preset-desc" data-i18n="second_preset_puzyrek_desc">Игривый и лёгкий на подъём; знает океанские секреты.</p>
+              </button>
+            </div>
+          </div>
+
+          <!-- second hero custom (Table 4) -->
+          <div class="subpanel subpanel--purple hidden" id="secondHeroCustomPanel">
+            <p class="subpanel__title" data-i18n="second_hero_custom_title">Персональные параметры</p>
+
+            <div class="grid-2">
+              <div>
+                <label for="second_type" data-i18n="second_type_label">Тип персонажа</label>
+                <select id="second_type" name="second_type">
+                  <option value="animal" data-i18n="second_type_animal">Животное</option>
+                  <option value="human" data-i18n="second_type_human">Человек</option>
+                  <option value="robot" data-i18n="second_type_robot">Робот</option>
+                  <option value="other" data-i18n="second_type_other">Другое</option>
+                </select>
+              </div>
+              <div>
+                <label for="second_role" data-i18n="second_role_label">Роль в сказке</label>
+                <select id="second_role" name="second_role">
+                  <option value="helper" data-i18n="second_role_helper">Помощник</option>
+                  <option value="friend" data-i18n="second_role_friend">Друг</option>
+                  <option value="mentor" data-i18n="second_role_mentor">Наставник</option>
+                  <option value="companion" data-i18n="second_role_companion">Компаньон</option>
+                  <option value="wise_advisor" data-i18n="second_role_wise">Мудрый советник</option>
+                  <option value="comic" data-i18n="second_role_comic">Комический персонаж</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-1" style="margin-top:10px;">
+              <div id="secondTypeOtherWrap" class="hidden">
+                <label for="second_type_other_text" data-i18n="second_type_other_text_label">Уточните тип (текст)</label>
+                <input id="second_type_other_text" name="second_type_other_text" maxlength="40" />
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top:10px;">
+              <div>
+                <label for="second_traits" data-i18n="second_traits_label">3 характеристики (через запятую)</label>
+                <input id="second_traits" name="second_traits" placeholder="" />
+                <span class="field-hint" data-i18n="second_traits_hint">Ровно три слова/коротких признака.</span>
+              </div>
+              <div>
+                <label for="second_visual_markers" data-i18n="second_visual_markers_label">Визуальные маркеры (2–3)</label>
+                <input id="second_visual_markers" name="second_visual_markers" placeholder="" />
+                <span class="field-hint" data-i18n="second_visual_markers_hint">Например: «очки, красный шарф».</span>
+              </div>
+            </div>
+
+            <div class="grid-1" style="margin-top:10px;">
+              <div>
+                <label for="second_unique_prop" data-i18n="second_unique_prop_label">Уникальный реквизит (1 предмет, опц.)</label>
+                <input id="second_unique_prop" name="second_unique_prop" maxlength="40" />
+              </div>
+            </div>
+          </div>
+
+          <div class="inline-alert hidden" id="secondHeroNeedNameAlert" data-i18n="second_hero_need_name_alert">
+            Сначала укажите имя второго героя.
+          </div>
+        </div>
+
+        <!-- P.5 setting mode -->
+        <div class="field">
+          <label data-i18n="setting_mode_label">Место действия *</label>
+
+          <div class="mode-grid mode-grid--2" id="settingModeTiles">
+            <button type="button" class="mode-tile" data-mode="preset" style="aspect-ratio:auto; min-height:54px;">
+              <div class="mode-tile__icon">🗺️</div>
+              <div class="mode-tile__title" data-i18n="setting_mode_preset">Выбрать место</div>
+            </button>
+            <button type="button" class="mode-tile" data-mode="custom" style="aspect-ratio:auto; min-height:54px;">
+              <div class="mode-tile__icon">🏡</div>
+              <div class="mode-tile__title" data-i18n="setting_mode_custom">Персонифицированное</div>
+            </button>
+          </div>
+
+          <!-- Table 5: 6 preset places -->
+          <div class="subpanel hidden" id="settingPresetPanel">
+            <p class="subpanel__title" data-i18n="setting_preset_title">Выберите место</p>
+            <div class="preset-grid preset-grid--2" id="settingPresetGrid">
+              <button type="button" class="preset-btn" data-setting-preset="yard_fun">
+                <p class="preset-title" data-i18n="setting_yard_fun_title">Двор весёлых игр</p>
+                <p class="preset-desc" data-i18n="setting_yard_fun_desc">Детская площадка / двор / сад</p>
+              </button>
+              <button type="button" class="preset-btn" data-setting-preset="warm_home">
+                <p class="preset-title" data-i18n="setting_warm_home_title">Тёплый дом</p>
+                <p class="preset-desc" data-i18n="setting_warm_home_desc">Дом и семейный быт</p>
+              </button>
+              <button type="button" class="preset-btn" data-setting-preset="city_road">
+                <p class="preset-title" data-i18n="setting_city_road_title">Дорога в городе</p>
+                <p class="preset-desc" data-i18n="setting_city_road_desc">Городская улица и транспорт</p>
+              </button>
+              <button type="button" class="preset-btn" data-setting-preset="park_nature">
+                <p class="preset-title" data-i18n="setting_park_nature_title">Парк и природа</p>
+                <p class="preset-desc" data-i18n="setting_park_nature_desc">Парк / лесная тропа / берег</p>
+              </button>
+              <button type="button" class="preset-btn" data-setting-preset="wonder_lab">
+                <p class="preset-title" data-i18n="setting_wonder_lab_title">Лаборатория чудес</p>
+                <p class="preset-desc" data-i18n="setting_wonder_lab_desc">Мастерская / кружок / лаборатория</p>
+              </button>
+              <button type="button" class="preset-btn" data-setting-preset="book_house">
+                <p class="preset-title" data-i18n="setting_book_house_title">Дом книг</p>
+                <p class="preset-desc" data-i18n="setting_book_house_desc">Библиотека / книги</p>
+              </button>
+            </div>
+          </div>
+
+          <!-- Table 6: custom place -->
+          <div class="subpanel subpanel--purple hidden" id="settingCustomPanel">
+            <p class="subpanel__title" data-i18n="setting_custom_title">Опишите место</p>
+
+            <div class="grid-2">
+              <div>
+                <label for="place_type" data-i18n="place_type_label">Тип места</label>
+                <select id="place_type" name="place_type">
+                  <option value="home" data-i18n="place_type_home">Дом</option>
+                  <option value="playground" data-i18n="place_type_playground">Площадка</option>
+                  <option value="school_garden" data-i18n="place_type_school_garden">Сад или школа</option>
+                  <option value="park_forest" data-i18n="place_type_park_forest">Парк или лес</option>
+                  <option value="city" data-i18n="place_type_city">Город</option>
+                  <option value="other" data-i18n="place_type_other">Другое</option>
+                </select>
+              </div>
+              <div id="placeTypeOtherWrap" class="hidden">
+                <label for="place_type_other_text" data-i18n="place_type_other_text_label">Если «Другое», уточните</label>
+                <input id="place_type_other_text" name="place_type_other_text" maxlength="40" />
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top:10px;">
+              <div>
+                <label for="place_time" data-i18n="place_time_label">Время</label>
+                <select id="place_time" name="place_time">
+                  <option value="morning" data-i18n="time_morning">Утро</option>
+                  <option value="day" data-i18n="time_day">День</option>
+                  <option value="evening" data-i18n="time_evening">Вечер</option>
+                </select>
+              </div>
+              <div>
+                <label for="place_season" data-i18n="place_season_label">Сезон</label>
+                <select id="place_season" name="place_season">
+                  <option value="spring" data-i18n="season_spring">Весна</option>
+                  <option value="summer" data-i18n="season_summer">Лето</option>
+                  <option value="autumn" data-i18n="season_autumn">Осень</option>
+                  <option value="winter" data-i18n="season_winter">Зима</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid-1" style="margin-top:10px;">
+              <div>
+                <label for="place_details" data-i18n="place_details_label">Три детали места</label>
+                <textarea id="place_details" name="place_details"></textarea>
+                <span class="field-hint" data-i18n="place_details_hint">
+                  Напишите 3 детали, например: «синяя дверь, ковёр со звёздами, большой фикус».
+                </span>
+              </div>
+            </div>
+
+            <div class="grid-2" style="margin-top:10px;">
+              <div>
+                <label for="place_realism" data-i18n="place_realism_label">Реалистичность</label>
+                <select id="place_realism" name="place_realism">
+                  <option value="realistic" data-i18n="realism_realistic">Как в жизни</option>
+                  <option value="slightly_fairytale" data-i18n="realism_slightly">Чуть сказочно, но узнаваемо</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="inline-alert hidden" id="settingNeedChoiceAlert" data-i18n="setting_need_choice_alert">
+            Выберите место (пресет) или заполните персонифицированное место.
+          </div>
+        </div>
+
+        <!-- P.6 age group -->
+        <div class="field">
+          <label for="age_group" data-i18n="age_group_label">Возрастная группа *</label>
+          <select id="age_group" name="age_group" required>
+            <option value="0_3" data-i18n="age_0_3">0–3</option>
+            <option value="4_6" data-i18n="age_4_6" selected>4–6</option>
+            <option value="7_12" data-i18n="age_7_12">7–12</option>
+            <option value="12_16" data-i18n="age_12_16">12–16</option>
+            <option value="16_plus" data-i18n="age_16_plus">16+</option>
+          </select>
+        </div>
+
+        <!-- P.7 narrative style -->
+        <div class="field">
+          <label for="narrative_style" data-i18n="narrative_style_label">Стиль повествования *</label>
+          <select id="narrative_style" name="narrative_style" required>
+            <option value="calm" data-i18n="style_calm">Спокойный медитативный</option>
+            <option value="adventure" data-i18n="style_adventure">Приключенческий</option>
+            <option value="mystery" data-i18n="style_mystery">Загадочный</option>
+            <option value="humor" data-i18n="style_humor">С юмором</option>
+            <option value="lyric" data-i18n="style_lyric">Лирический</option>
+          </select>
+        </div>
+
+        <!-- P.8 moral theme -->
+        <div class="field">
+          <label for="moral_theme" data-i18n="moral_theme_label">Поучительный сюжет *</label>
+          <select id="moral_theme" name="moral_theme" required>
+            <option value="kindness_help" data-i18n="m_kindness_help">Доброта и помощь другим</option>
+            <option value="power_of_friendship" data-i18n="m_power_of_friendship">Сила дружбы</option>
+            <option value="honesty_trust" data-i18n="m_honesty_trust">Честность и доверие</option>
+            <option value="accepting_differences" data-i18n="m_accepting_differences">Принятие различий</option>
+            <option value="admitting_mistakes" data-i18n="m_admitting_mistakes">Умение признавать ошибки</option>
+            <option value="patience_perseverance" data-i18n="m_patience_perseverance">Терпение и настойчивость</option>
+            <option value="care_for_nature" data-i18n="m_care_for_nature">Забота о природе</option>
+            <option value="safety_caution" data-i18n="m_safety_caution">Безопасность и осторожность</option>
+            <option value="respect_parents_adults" data-i18n="m_respect_parents_adults">Уважение к родителям и взрослым</option>
+            <option value="sharing" data-i18n="m_sharing">Умение делиться</option>
+            <option value="independence_responsibility" data-i18n="m_independence_responsibility">Самостоятельность и ответственность</option>
+            <option value="emotions_expression" data-i18n="m_emotions_expression">Эмоции и умение говорить о них</option>
+            <option value="anti_bullying" data-i18n="m_anti_bullying">Противостояние буллингу</option>
+            <option value="value_of_work" data-i18n="m_value_of_work">Ценность труда</option>
+            <option value="tidiness_order" data-i18n="m_tidiness_order">Аккуратность и порядок</option>
+            <option value="gadgets_moderation" data-i18n="m_gadgets_moderation">Умеренность в гаджетах</option>
+            <option value="gratitude" data-i18n="m_gratitude">Благодарность</option>
+            <option value="imagination_creativity" data-i18n="m_imagination_creativity">Воображение и творчество</option>
+          </select>
+        </div>
+
+        <!-- P.9 illustration style -->
+        <div class="field">
+          <label for="illustration_style_id" data-i18n="illustration_style_label">Стиль иллюстраций *</label>
+          <select id="illustration_style_id" name="illustration_style_id" required>
+            <option value="semi_realistic_book" data-i18n="ill_semi_realistic">Полу-реалистичная книжная иллюстрация</option>
+            <option value="watercolor_ink" data-i18n="ill_watercolor_ink">Акварель + тушь</option>
+            <option value="gouache_flat" data-i18n="ill_gouache">Гуашь / плоская иллюстрация</option>
+            <option value="clean_vector" data-i18n="ill_vector">Векторная иллюстрация</option>
+            <option value="claymation" data-i18n="ill_clay">Пластилиновая стилизация</option>
+            <option value="anime" data-i18n="ill_anime">Аниме</option>
+          </select>
+        </div>
+
+        <!-- P.10 language -->
+        <div class="field">
+          <label for="language" data-i18n="language_label">Язык сказки *</label>
+          <select id="language" name="language" required>
+            <option value="ru" data-i18n="language_ru">Русский</option>
+            <option value="en" data-i18n="language_en">English</option>
+          </select>
+        </div>
+
+        <button type="submit" id="submitBtn" data-i18n="submit">Создать сказку</button>
+        <p class="note" id="note" data-i18n="note">
+          После формы бот при необходимости запросит фото в чате.
+        </p>
+      </form>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      // --- Compatibility helpers (no optional chaining) ---
+      function matchesSelector(el, selector) {
+        if (!el) return false;
+        var p = el.matches || el.msMatchesSelector || el.webkitMatchesSelector;
+        if (!p) return false;
+        return p.call(el, selector);
+      }
+      function closestEl(el, selector) {
+        var cur = el;
+        while (cur && cur.nodeType === 1) {
+          if (matchesSelector(cur, selector)) return cur;
+          cur = cur.parentElement;
+        }
+        return null;
+      }
+      function show(el) { if (el) el.classList.remove('hidden'); }
+      function hide(el) { if (el) el.classList.add('hidden'); }
+
+      // --- Telegram ---
+      var tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+      var isTelegramWebApp = !!(tg && (tg.initData || tg.initDataUnsafe));
+      var WEBHOOK_URL = 'https://oglob.app.n8n.cloud/webhook-test/telegram-puzirek';
+
+      // --- DOM ---
+      var form = document.getElementById('storyForm');
+      var submitBtn = document.getElementById('submitBtn');
+
+      var btnLangRu = document.getElementById('btnLangRu');
+      var btnLangEn = document.getElementById('btnLangEn');
+
+      var mainHeroModeTiles = document.getElementById('mainHeroModeTiles');
+      var mainHeroSelectPanel = document.getElementById('mainHeroSelectPanel');
+      var photoAlertMain = document.getElementById('photoAlertMain');
+
+      var secondHeroName = document.getElementById('second_hero_name');
+      var secondHeroModeTiles = document.getElementById('secondHeroModeTiles');
+      var secondHeroPresetPanel = document.getElementById('secondHeroPresetPanel');
+      var secondHeroCustomPanel = document.getElementById('secondHeroCustomPanel');
+      var secondHeroNeedNameAlert = document.getElementById('secondHeroNeedNameAlert');
+      var photoAlertSecond = document.getElementById('photoAlertSecond');
+
+      var secondHeroPresetGrid = document.getElementById('secondHeroPresetGrid');
+      var secondType = document.getElementById('second_type');
+      var secondTypeOtherWrap = document.getElementById('secondTypeOtherWrap');
+      var secondTypeOtherText = document.getElementById('second_type_other_text');
+
+      var settingModeTiles = document.getElementById('settingModeTiles');
+      var settingPresetPanel = document.getElementById('settingPresetPanel');
+      var settingCustomPanel = document.getElementById('settingCustomPanel');
+      var settingPresetGrid = document.getElementById('settingPresetGrid');
+      var settingNeedChoiceAlert = document.getElementById('settingNeedChoiceAlert');
+
+      var placeType = document.getElementById('place_type');
+      var placeTypeOtherWrap = document.getElementById('placeTypeOtherWrap');
+      var placeTypeOtherText = document.getElementById('place_type_other_text');
+
+      var storyLanguageSelect = document.getElementById('language');
+      var storyLanguageTouched = false;
+
+      // --- State ---
+      var urlParams = new URLSearchParams(window.location.search);
+      var langFromUrl = urlParams.get('lang') || 'en';
+      var currentLang = (langFromUrl === 'ru') ? 'ru' : 'en';
+
+      var mainHeroAppearanceMode = 'auto'; // photo | select | auto
+      var secondHeroMode = 'none';         // none | preset | custom | photo
+      var secondHeroPresetId = null;
+
+      var settingMode = 'preset';          // preset | custom
+      var settingPresetId = null;
+
+      // --- i18n ---
+      var i18n = {
+        ru: {
+          title: 'Создать сказку',
+          description: 'Заполните параметры — бот сгенерирует персональную сказку и отправит её в чат в виде PDF-книги.',
+          main_hero_name_label: 'Имя главного героя *',
+          main_hero_appearance_label: 'Внешность главного героя *',
+          mode_photo: 'Загрузить фото',
+          mode_select_appearance: 'Выбрать внешность',
+          mode_auto: 'Предложить',
+          photo_alert_main: 'После отправки формы бот попросит прислать фото в чате.',
+          appearance_panel_title: 'Параметры внешности',
+          age_years_label: 'Возраст (цифрой)',
+          gender_label: 'Пол',
+          gender_boy: 'Мальчик',
+          gender_girl: 'Девочка',
+          gender_unspecified: 'Не указывать',
+          skin_tone_label: 'Тон кожи',
+          skin_very_light: 'Очень светлый',
+          skin_light: 'Светлый',
+          skin_medium: 'Средний',
+          skin_tan: 'Смуглый',
+          skin_dark: 'Тёмный',
+          face_shape_label: 'Форма лица',
+          face_round: 'Круглое',
+          face_oval: 'Овальное',
+          face_long: 'Удлинённое',
+          unspecified: 'Не указывать',
+          face_accent_label: 'Акцент лица (текст)',
+          eyes_color_label: 'Глаза: цвет',
+          eyes_brown: 'Карие',
+          eyes_blue: 'Голубые',
+          eyes_gray: 'Серые',
+          eyes_green: 'Зелёные',
+          eyes_hazel: 'Ореховые',
+          eyes_shape_label: 'Глаза: форма',
+          eyes_shape_round: 'Круглые',
+          eyes_shape_almond: 'Миндалевидные',
+          eyes_size_label: 'Глаза: размер',
+          size_small: 'Небольшие',
+          size_medium: 'Средние',
+          size_large: 'Крупные',
+          nose_label: 'Нос',
+          nose_small: 'Маленький',
+          nose_medium: 'Средний',
+          nose_prominent: 'Выраженный',
+          lips_label: 'Губы',
+          lips_thin: 'Тонкие',
+          lips_medium: 'Средние',
+          lips_full: 'Пухлые',
+          body_type_label: 'Телосложение',
+          body_slim: 'Худощавое',
+          body_average: 'Среднее',
+          body_chubby: 'Пухленькое',
+          height_vs_peers_label: 'Рост относительно сверстников',
+          height_shorter: 'Ниже',
+          height_average: 'Средний',
+          height_taller: 'Выше',
+          hair_color_label: 'Волосы: цвет',
+          hair_blond: 'Блонд',
+          hair_light_brown: 'Русые',
+          hair_chestnut: 'Каштановые',
+          hair_dark: 'Тёмные',
+          hair_red: 'Рыжие',
+          hair_black: 'Чёрные',
+          hair_length_label: 'Волосы: длина',
+          hair_very_short: 'Очень короткие',
+          hair_short: 'Короткие',
+          hair_shoulder: 'До плеч',
+          hair_long: 'Длинные',
+          hair_type_label: 'Волосы: тип',
+          hair_straight: 'Прямые',
+          hair_wavy: 'Волнистые',
+          hair_curly: 'Кудрявые',
+          hair_density_label: 'Волосы: густота',
+          density_thin: 'Редкие',
+          density_medium: 'Средние',
+          density_thick: 'Густые',
+          bangs_label: 'Чёлка',
+          yes: 'Есть',
+          no: 'Нет',
+          parting_label: 'Пробор',
+          parting_left: 'Слева',
+          parting_right: 'Справа',
+          parting_center: 'По центру',
+          signature_look_label: 'Фирменный образ (текст)',
+          special_features_label: 'Особенности (опц.)',
+
+          second_hero_name_label: 'Имя второго героя (опционально)',
+          second_hero_name_hint: 'Если не нужен второй герой — оставьте поле пустым.',
+          second_hero_mode_label: 'Второй герой: вариант (если задано имя)',
+          mode_second_preset: 'Выбрать из 6',
+          mode_second_custom: 'Персональный',
+          photo_alert_second: 'После отправки формы бот попросит прислать фото второго героя в чате.',
+          second_hero_preset_title: 'Выберите персонажа',
+          second_preset_foxik_title: 'Лисёнок Фоксик',
+          second_preset_foxik_desc: 'Любит загадки и всегда предлагает план А и план Б.',
+          second_preset_tikhonya_title: 'Сова Тихоня',
+          second_preset_tikhonya_desc: 'Спокойная, объясняет сложное простыми словами.',
+          second_preset_bublik_title: 'Щенок Бублик',
+          second_preset_bublik_desc: 'Добрый и верный; поддержит, когда страшно или обидно.',
+          second_preset_pixel_title: 'Робот Пиксель',
+          second_preset_pixel_desc: 'Изобретательный помощник: карты, счёт, полезные устройства.',
+          second_preset_iskrik_title: 'Дракончик Искрик',
+          second_preset_iskrik_desc: 'Маленький и безобидный: «согревает» смелость и настроение.',
+          second_preset_puzyrek_title: 'Морской конёк Пузырёк',
+          second_preset_puzyrek_desc: 'Игривый и лёгкий на подъём; знает океанские секреты.',
+          second_hero_custom_title: 'Персональные параметры',
+          second_type_label: 'Тип персонажа',
+          second_type_animal: 'Животное',
+          second_type_human: 'Человек',
+          second_type_robot: 'Робот',
+          second_type_other: 'Другое',
+          second_type_other_text_label: 'Уточните тип (текст)',
+          second_role_label: 'Роль в сказке',
+          second_role_helper: 'Помощник',
+          second_role_friend: 'Друг',
+          second_role_mentor: 'Наставник',
+          second_role_companion: 'Компаньон',
+          second_role_wise: 'Мудрый советник',
+          second_role_comic: 'Комический персонаж',
+          second_traits_label: '3 характеристики (через запятую)',
+          second_traits_hint: 'Ровно три слова/коротких признака.',
+          second_visual_markers_label: 'Визуальные маркеры (2–3)',
+          second_visual_markers_hint: 'Например: «очки, красный шарф».',
+          second_unique_prop_label: 'Уникальный реквизит (1 предмет, опц.)',
+          second_hero_need_name_alert: 'Сначала укажите имя второго героя.',
+
+          setting_mode_label: 'Место действия *',
+          setting_mode_preset: 'Выбрать место',
+          setting_mode_custom: 'Персонифицированное',
+          setting_preset_title: 'Выберите место',
+          setting_yard_fun_title: 'Двор весёлых игр',
+          setting_yard_fun_desc: 'Детская площадка / двор / сад',
+          setting_warm_home_title: 'Тёплый дом',
+          setting_warm_home_desc: 'Дом и семейный быт',
+          setting_city_road_title: 'Дорога в городе',
+          setting_city_road_desc: 'Городская улица и транспорт',
+          setting_park_nature_title: 'Парк и природа',
+          setting_park_nature_desc: 'Парк / лесная тропа / берег',
+          setting_wonder_lab_title: 'Лаборатория чудес',
+          setting_wonder_lab_desc: 'Мастерская / кружок / лаборатория',
+          setting_book_house_title: 'Дом книг',
+          setting_book_house_desc: 'Библиотека / книги',
+          setting_custom_title: 'Опишите место',
+          place_type_label: 'Тип места',
+          place_type_home: 'Дом',
+          place_type_playground: 'Площадка',
+          place_type_school_garden: 'Сад или школа',
+          place_type_park_forest: 'Парк или лес',
+          place_type_city: 'Город',
+          place_type_other: 'Другое',
+          place_type_other_text_label: 'Если «Другое», уточните',
+          place_time_label: 'Время',
+          time_morning: 'Утро',
+          time_day: 'День',
+          time_evening: 'Вечер',
+          place_season_label: 'Сезон',
+          season_spring: 'Весна',
+          season_summer: 'Лето',
+          season_autumn: 'Осень',
+          season_winter: 'Зима',
+          place_details_label: 'Три детали места',
+          place_details_hint: 'Напишите 3 детали, например: «синяя дверь, ковёр со звёздами, большой фикус».',
+          place_realism_label: 'Реалистичность',
+          realism_realistic: 'Как в жизни',
+          realism_slightly: 'Чуть сказочно, но узнаваемо',
+          setting_need_choice_alert: 'Выберите место (пресет) или заполните персонифицированное место.',
+
+          age_group_label: 'Возрастная группа *',
+          age_0_3: '0–3',
+          age_4_6: '4–6',
+          age_7_12: '7–12',
+          age_12_16: '12–16',
+          age_16_plus: '16+',
+
+          narrative_style_label: 'Стиль повествования *',
+          style_calm: 'Спокойный медитативный',
+          style_adventure: 'Приключенческий',
+          style_mystery: 'Загадочный',
+          style_humor: 'С юмором',
+          style_lyric: 'Лирический',
+
+          moral_theme_label: 'Поучительный сюжет *',
+          m_kindness_help: 'Доброта и помощь другим',
+          m_power_of_friendship: 'Сила дружбы',
+          m_honesty_trust: 'Честность и доверие',
+          m_accepting_differences: 'Принятие различий',
+          m_admitting_mistakes: 'Умение признавать ошибки',
+          m_patience_perseverance: 'Терпение и настойчивость',
+          m_care_for_nature: 'Забота о природе',
+          m_safety_caution: 'Безопасность и осторожность',
+          m_respect_parents_adults: 'Уважение к родителям и взрослым',
+          m_sharing: 'Умение делиться',
+          m_independence_responsibility: 'Самостоятельность и ответственность',
+          m_emotions_expression: 'Эмоции и умение говорить о них',
+          m_anti_bullying: 'Противостояние буллингу',
+          m_value_of_work: 'Ценность труда',
+          m_tidiness_order: 'Аккуратность и порядок',
+          m_gadgets_moderation: 'Умеренность в гаджетах',
+          m_gratitude: 'Благодарность',
+          m_imagination_creativity: 'Воображение и творчество',
+
+          illustration_style_label: 'Стиль иллюстраций *',
+          ill_semi_realistic: 'Полу-реалистичная книжная иллюстрация',
+          ill_watercolor_ink: 'Акварель + тушь',
+          ill_gouache: 'Гуашь / плоская иллюстрация',
+          ill_vector: 'Векторная иллюстрация',
+          ill_clay: 'Пластилиновая стилизация',
+          ill_anime: 'Аниме',
+
+          language_label: 'Язык сказки *',
+          language_ru: 'Русский',
+          language_en: 'English',
+
+          submit: 'Создать сказку',
+          note: 'После формы бот при необходимости запросит фото в чате.'
+        },
+
+        en: {
+          title: 'Create a story',
+          description: 'Fill in the fields — the bot will generate a personalised story and send it to the chat as a PDF book.',
+          main_hero_name_label: 'Main character’s name *',
+          main_hero_appearance_label: 'Main character appearance *',
+          mode_photo: 'Upload photo',
+          mode_select_appearance: 'Choose appearance',
+          mode_auto: 'Auto-suggest',
+          photo_alert_main: 'After you submit the form, the bot will ask you to send a photo in the chat.',
+          appearance_panel_title: 'Appearance details',
+          age_years_label: 'Age (number)',
+          gender_label: 'Gender',
+          gender_boy: 'Boy',
+          gender_girl: 'Girl',
+          gender_unspecified: 'Prefer not to say',
+          skin_tone_label: 'Skin tone',
+          skin_very_light: 'Very light',
+          skin_light: 'Light',
+          skin_medium: 'Medium',
+          skin_tan: 'Tan',
+          skin_dark: 'Dark',
+          face_shape_label: 'Face shape',
+          face_round: 'Round',
+          face_oval: 'Oval',
+          face_long: 'Long',
+          unspecified: 'Prefer not to say',
+          face_accent_label: 'Face accent (text)',
+          eyes_color_label: 'Eyes: color',
+          eyes_brown: 'Brown',
+          eyes_blue: 'Blue',
+          eyes_gray: 'Gray',
+          eyes_green: 'Green',
+          eyes_hazel: 'Hazel',
+          eyes_shape_label: 'Eyes: shape',
+          eyes_shape_round: 'Round',
+          eyes_shape_almond: 'Almond',
+          eyes_size_label: 'Eyes: size',
+          size_small: 'Small',
+          size_medium: 'Medium',
+          size_large: 'Large',
+          nose_label: 'Nose',
+          nose_small: 'Small',
+          nose_medium: 'Medium',
+          nose_prominent: 'Prominent',
+          lips_label: 'Lips',
+          lips_thin: 'Thin',
+          lips_medium: 'Medium',
+          lips_full: 'Full',
+          body_type_label: 'Body type',
+          body_slim: 'Slim',
+          body_average: 'Average',
+          body_chubby: 'Chubby',
+          height_vs_peers_label: 'Height vs peers',
+          height_shorter: 'Shorter',
+          height_average: 'Average',
+          height_taller: 'Taller',
+          hair_color_label: 'Hair: color',
+          hair_blond: 'Blond',
+          hair_light_brown: 'Light brown',
+          hair_chestnut: 'Chestnut',
+          hair_dark: 'Dark',
+          hair_red: 'Red',
+          hair_black: 'Black',
+          hair_length_label: 'Hair: length',
+          hair_very_short: 'Very short',
+          hair_short: 'Short',
+          hair_shoulder: 'Shoulder length',
+          hair_long: 'Long',
+          hair_type_label: 'Hair: type',
+          hair_straight: 'Straight',
+          hair_wavy: 'Wavy',
+          hair_curly: 'Curly',
+          hair_density_label: 'Hair: density',
+          density_thin: 'Thin',
+          density_medium: 'Medium',
+          density_thick: 'Thick',
+          bangs_label: 'Bangs',
+          yes: 'Yes',
+          no: 'No',
+          parting_label: 'Parting',
+          parting_left: 'Left',
+          parting_right: 'Right',
+          parting_center: 'Center',
+          signature_look_label: 'Signature look (text)',
+          special_features_label: 'Special features (optional)',
+
+          second_hero_name_label: 'Second character’s name (optional)',
+          second_hero_name_hint: 'If you do not need a second character, leave this empty.',
+          second_hero_mode_label: 'Second character: option (if a name is provided)',
+          mode_second_preset: 'Pick from 6',
+          mode_second_custom: 'Custom',
+          photo_alert_second: 'After you submit the form, the bot will ask you to send the second character photo in the chat.',
+          second_hero_preset_title: 'Choose a character',
+          second_preset_foxik_title: 'Fox cub Foxik',
+          second_preset_foxik_desc: 'Loves riddles and always offers plan A and plan B.',
+          second_preset_tikhonya_title: 'Owl Tikhonya',
+          second_preset_tikhonya_desc: 'Calm and observant; explains complex things simply.',
+          second_preset_bublik_title: 'Puppy Bublik',
+          second_preset_bublik_desc: 'Kind and loyal; supports you when you feel scared or upset.',
+          second_preset_pixel_title: 'Robot Pixel',
+          second_preset_pixel_desc: 'Inventive helper: maps, counting, and useful gadgets.',
+          second_preset_iskrik_title: 'Baby dragon Iskrik',
+          second_preset_iskrik_desc: 'Small and harmless; “warms up” courage and mood.',
+          second_preset_puzyrek_title: 'Seahorse Puzyrek',
+          second_preset_puzyrek_desc: 'Playful and upbeat; knows ocean secrets.',
+          second_hero_custom_title: 'Custom details',
+          second_type_label: 'Character type',
+          second_type_animal: 'Animal',
+          second_type_human: 'Human',
+          second_type_robot: 'Robot',
+          second_type_other: 'Other',
+          second_type_other_text_label: 'Specify the type (text)',
+          second_role_label: 'Role in the story',
+          second_role_helper: 'Helper',
+          second_role_friend: 'Friend',
+          second_role_mentor: 'Mentor',
+          second_role_companion: 'Companion',
+          second_role_wise: 'Wise advisor',
+          second_role_comic: 'Comic relief',
+          second_traits_label: '3 traits (comma-separated)',
+          second_traits_hint: 'Exactly three short words/traits.',
+          second_visual_markers_label: 'Visual markers (2–3)',
+          second_visual_markers_hint: 'E.g., “glasses, red scarf”.',
+          second_unique_prop_label: 'Unique prop (1 item, optional)',
+          second_hero_need_name_alert: 'Please enter the second character’s name first.',
+
+          setting_mode_label: 'Setting *',
+          setting_mode_preset: 'Choose a place',
+          setting_mode_custom: 'Personalised',
+          setting_preset_title: 'Choose a place',
+          setting_yard_fun_title: 'Yard of fun games',
+          setting_yard_fun_desc: 'Playground / yard / garden',
+          setting_warm_home_title: 'Warm home',
+          setting_warm_home_desc: 'Home and family life',
+          setting_city_road_title: 'City road',
+          setting_city_road_desc: 'Street and transport',
+          setting_park_nature_title: 'Park and nature',
+          setting_park_nature_desc: 'Park / forest path / shore',
+          setting_wonder_lab_title: 'Wonder lab',
+          setting_wonder_lab_desc: 'Workshop / club / lab',
+          setting_book_house_title: 'House of books',
+          setting_book_house_desc: 'Library / books',
+          setting_custom_title: 'Describe the place',
+          place_type_label: 'Place type',
+          place_type_home: 'Home',
+          place_type_playground: 'Playground',
+          place_type_school_garden: 'Nursery or school',
+          place_type_park_forest: 'Park or forest',
+          place_type_city: 'City',
+          place_type_other: 'Other',
+          place_type_other_text_label: 'If “Other”, specify',
+          place_time_label: 'Time of day',
+          time_morning: 'Morning',
+          time_day: 'Day',
+          time_evening: 'Evening',
+          place_season_label: 'Season',
+          season_spring: 'Spring',
+          season_summer: 'Summer',
+          season_autumn: 'Autumn',
+          season_winter: 'Winter',
+          place_details_label: 'Three place details',
+          place_details_hint: 'Write 3 details, e.g., “blue door, star rug, big ficus”.',
+          place_realism_label: 'Realism',
+          realism_realistic: 'Like real life',
+          realism_slightly: 'Slightly fairytale but recognisable',
+          setting_need_choice_alert: 'Choose a preset place or fill in the personalised place.',
+
+          age_group_label: 'Age group *',
+          age_0_3: '0–3',
+          age_4_6: '4–6',
+          age_7_12: '7–12',
+          age_12_16: '12–16',
+          age_16_plus: '16+',
+
+          narrative_style_label: 'Narrative style *',
+          style_calm: 'Calm / meditative',
+          style_adventure: 'Adventurous',
+          style_mystery: 'Mysterious',
+          style_humor: 'Humorous',
+          style_lyric: 'Lyrical',
+
+          moral_theme_label: 'Moral theme *',
+          m_kindness_help: 'Kindness and helping others',
+          m_power_of_friendship: 'Power of friendship',
+          m_honesty_trust: 'Honesty and trust',
+          m_accepting_differences: 'Accepting differences',
+          m_admitting_mistakes: 'Admitting mistakes',
+          m_patience_perseverance: 'Patience and perseverance',
+          m_care_for_nature: 'Caring for nature',
+          m_safety_caution: 'Safety and caution',
+          m_respect_parents_adults: 'Respect for parents and adults',
+          m_sharing: 'Sharing with others',
+          m_independence_responsibility: 'Independence and responsibility',
+          m_emotions_expression: 'Emotions and talking about them',
+          m_anti_bullying: 'Standing up to bullying',
+          m_value_of_work: 'Value of work',
+          m_tidiness_order: 'Tidiness and order',
+          m_gadgets_moderation: 'Moderation with gadgets',
+          m_gratitude: 'Gratitude',
+          m_imagination_creativity: 'Imagination and creativity',
+
+          illustration_style_label: 'Illustration style *',
+          ill_semi_realistic: 'Semi-realistic book illustration',
+          ill_watercolor_ink: 'Watercolor + ink',
+          ill_gouache: 'Gouache / flat shading',
+          ill_vector: 'Clean vector',
+          ill_clay: 'Claymation style',
+          ill_anime: 'Anime',
+
+          language_label: 'Story language *',
+          language_ru: 'Russian',
+          language_en: 'English',
+
+          submit: 'Create story',
+          note: 'After you submit, the bot will request photos in the chat if needed.'
+        }
+      };
+
+      function applyI18n(lang) {
+        currentLang = (lang === 'ru') ? 'ru' : 'en';
+        document.documentElement.lang = currentLang;
+
+        var dict = i18n[currentLang];
+        var nodes = document.querySelectorAll('[data-i18n]');
+        for (var i = 0; i < nodes.length; i++) {
+          var k = nodes[i].getAttribute('data-i18n');
+          if (dict[k]) nodes[i].textContent = dict[k];
+        }
+
+        // Set main hero name placeholder in a minimal safe way
+        var mainHeroName = document.getElementById('main_hero_name');
+        if (mainHeroName) {
+          mainHeroName.placeholder = (currentLang === 'ru') ? 'Например, Арина' : 'For example, Arina';
+        }
+        if (secondHeroName) {
+          secondHeroName.placeholder = (currentLang === 'ru') ? 'Можно оставить пустым' : 'You may leave this empty';
+        }
+
+        // Do not override story language if user already changed it manually
+        if (!storyLanguageTouched && storyLanguageSelect) {
+          storyLanguageSelect.value = currentLang;
+        }
+      }
+
+      function setActiveLangButton() {
+        if (btnLangRu) btnLangRu.classList.toggle('lang-btn--active', currentLang === 'ru');
+        if (btnLangEn) btnLangEn.classList.toggle('lang-btn--active', currentLang === 'en');
+      }
+
+      // --- UI: mode selection helpers ---
+      function setActiveTile(container, mode) {
+        if (!container) return;
+        var tiles = container.querySelectorAll('.mode-tile');
+        for (var i = 0; i < tiles.length; i++) {
+          var m = tiles[i].getAttribute('data-mode');
+          tiles[i].classList.toggle('mode-tile--active', m === mode);
+        }
+      }
+
+      function setActivePreset(container, attrName, value) {
+        if (!container) return;
+        var btns = container.querySelectorAll('.preset-btn');
+        for (var i = 0; i < btns.length; i++) {
+          var v = btns[i].getAttribute(attrName);
+          btns[i].classList.toggle('preset-btn--active', v === value);
+        }
+      }
+
+      function updateMainHeroPanels() {
+        hide(photoAlertMain);
+        hide(mainHeroSelectPanel);
+
+        if (mainHeroAppearanceMode === 'photo') {
+          show(photoAlertMain);
+        } else if (mainHeroAppearanceMode === 'select') {
+          show(mainHeroSelectPanel);
+        }
+      }
+
+      function updateSecondHeroPanels() {
+        hide(secondHeroNeedNameAlert);
+        hide(photoAlertSecond);
+        hide(secondHeroPresetPanel);
+        hide(secondHeroCustomPanel);
+
+        var hasName = !!(secondHeroName && secondHeroName.value && secondHeroName.value.trim().length > 0);
+
+        if (!hasName) {
+          secondHeroMode = 'none';
+          setActiveTile(secondHeroModeTiles, null);
+          secondHeroPresetId = null;
+          return;
+        }
+
+        if (secondHeroMode === 'photo') {
+          show(photoAlertSecond);
+        } else if (secondHeroMode === 'preset') {
+          show(secondHeroPresetPanel);
+        } else if (secondHeroMode === 'custom') {
+          show(secondHeroCustomPanel);
+        }
+      }
+
+      function updateSettingPanels() {
+        hide(settingNeedChoiceAlert);
+        hide(settingPresetPanel);
+        hide(settingCustomPanel);
+
+        if (settingMode === 'preset') show(settingPresetPanel);
+        if (settingMode === 'custom') show(settingCustomPanel);
+      }
+
+      // --- Event bindings ---
+      function bindEvents() {
+        // Telegram init
+        if (isTelegramWebApp) {
+          try { tg.ready(); tg.expand(); } catch (e) {}
+        }
+
+        // Language buttons
+        if (btnLangRu) {
+          btnLangRu.addEventListener('click', function () {
+            applyI18n('ru'); setActiveLangButton();
+          });
+          btnLangRu.addEventListener('touchstart', function () { /* iOS tap */ }, {passive:true});
+        }
+        if (btnLangEn) {
+          btnLangEn.addEventListener('click', function () {
+            applyI18n('en'); setActiveLangButton();
+          });
+          btnLangEn.addEventListener('touchstart', function () {}, {passive:true});
+        }
+
+        // Track story language manual change
+        if (storyLanguageSelect) {
+          storyLanguageSelect.addEventListener('change', function () { storyLanguageTouched = true; });
+        }
+
+        // Main hero mode tiles
+        if (mainHeroModeTiles) {
+          mainHeroModeTiles.addEventListener('click', function (e) {
+            var tile = closestEl(e.target, '.mode-tile');
+            if (!tile) return;
+            var mode = tile.getAttribute('data-mode');
+            mainHeroAppearanceMode = mode;
+            setActiveTile(mainHeroModeTiles, mainHeroAppearanceMode);
+            updateMainHeroPanels();
+          });
+        }
+
+        // Second hero name change
+        if (secondHeroName) {
+          secondHeroName.addEventListener('input', function () {
+            // if name was removed -> reset
+            if (!secondHeroName.value || secondHeroName.value.trim().length === 0) {
+              secondHeroMode = 'none';
+              secondHeroPresetId = null;
+              setActiveTile(secondHeroModeTiles, null);
+            }
+            updateSecondHeroPanels();
+          });
+        }
+
+        // Second hero mode tiles
+        if (secondHeroModeTiles) {
+          secondHeroModeTiles.addEventListener('click', function (e) {
+            var tile = closestEl(e.target, '.mode-tile');
+            if (!tile) return;
+
+            var hasName = !!(secondHeroName && secondHeroName.value && secondHeroName.value.trim().length > 0);
+            if (!hasName) {
+              show(secondHeroNeedNameAlert);
+              return;
+            }
+
+            var mode = tile.getAttribute('data-mode'); // preset | custom | photo
+            secondHeroMode = mode;
+            setActiveTile(secondHeroModeTiles, secondHeroMode);
+            updateSecondHeroPanels();
+          });
+        }
+
+        // Second hero preset selection
+        if (secondHeroPresetGrid) {
+          secondHeroPresetGrid.addEventListener('click', function (e) {
+            var btn = closestEl(e.target, '.preset-btn');
+            if (!btn) return;
+            secondHeroPresetId = btn.getAttribute('data-second-preset');
+            setActivePreset(secondHeroPresetGrid, 'data-second-preset', secondHeroPresetId);
+          });
+        }
+
+        // Second hero custom: type other
+        if (secondType) {
+          secondType.addEventListener('change', function () {
+            if (secondType.value === 'other') show(secondTypeOtherWrap);
+            else hide(secondTypeOtherWrap);
+          });
+        }
+
+        // Setting mode tiles
+        if (settingModeTiles) {
+          settingModeTiles.addEventListener('click', function (e) {
+            var tile = closestEl(e.target, '.mode-tile');
+            if (!tile) return;
+            var mode = tile.getAttribute('data-mode'); // preset | custom
+            settingMode = mode;
+            setActiveTile(settingModeTiles, settingMode);
+            updateSettingPanels();
+          });
+        }
+
+        // Setting preset selection
+        if (settingPresetGrid) {
+          settingPresetGrid.addEventListener('click', function (e) {
+            var btn = closestEl(e.target, '.preset-btn');
+            if (!btn) return;
+            settingPresetId = btn.getAttribute('data-setting-preset');
+            setActivePreset(settingPresetGrid, 'data-setting-preset', settingPresetId);
+          });
+        }
+
+        // Setting custom: type other
+        if (placeType) {
+          placeType.addEventListener('change', function () {
+            if (placeType.value === 'other') show(placeTypeOtherWrap);
+            else hide(placeTypeOtherWrap);
+          });
+        }
+
+        // Submit
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
+          submitBtn.disabled = true;
+
+          if (!isTelegramWebApp) {
+            alert(currentLang === 'ru' ? 'Откройте Mini App внутри Telegram.' : 'Please open this Mini App inside Telegram.');
+            submitBtn.disabled = false;
+            return;
+          }
+
+          // Validation: second hero requires a mode if name is provided
+          var secondName = (secondHeroName && secondHeroName.value) ? secondHeroName.value.trim() : '';
+          var hasSecond = secondName.length > 0;
+
+          if (hasSecond && (secondHeroMode === 'none')) {
+            show(secondHeroNeedNameAlert);
+            submitBtn.disabled = false;
+            return;
+          }
+
+          // Validation: setting must have either preset chosen or custom filled
+          if (settingMode === 'preset') {
+            if (!settingPresetId) {
+              show(settingNeedChoiceAlert);
+              submitBtn.disabled = false;
+              return;
+            }
+          } else if (settingMode === 'custom') {
+            var details = document.getElementById('place_details').value.trim();
+            if ((placeType.value === 'other' && (!placeTypeOtherText.value || !placeTypeOtherText.value.trim())) || details.length === 0) {
+              show(settingNeedChoiceAlert);
+              submitBtn.disabled = false;
+              return;
+            }
+          }
+
+          // post_submit_photo_requests
+          var postSubmit = [];
+          if (mainHeroAppearanceMode === 'photo') postSubmit.push('main_hero');
+          if (hasSecond && secondHeroMode === 'photo') postSubmit.push('second_hero');
+
+          // main hero appearance object (only if select)
+          function val(id) {
+            var el = document.getElementById(id);
+            return el ? el.value : '';
+          }
+          function valTrim(id) {
+            var el = document.getElementById(id);
+            return el ? (el.value || '').trim() : '';
+          }
+
+          var mainHeroAppearance = null;
+          if (mainHeroAppearanceMode === 'select') {
+            mainHeroAppearance = {
+              age_years: valTrim('age_years') || null,
+              gender: val('gender') || null,
+              skin_tone: val('skin_tone') || null,
+              face_shape: val('face_shape') || null,
+              face_accent: valTrim('face_accent') || null,
+              eyes_color: val('eyes_color') || null,
+              eyes_shape: val('eyes_shape') || null,
+              eyes_size: val('eyes_size') || null,
+              hair_color: val('hair_color') || null,
+              hair_length: val('hair_length') || null,
+              hair_type: val('hair_type') || null,
+              hair_density: val('hair_density') || null,
+              bangs: val('bangs') || null,
+              parting: val('parting') || null,
+              nose: val('nose') || null,
+              lips: val('lips') || null,
+              body_type: val('body_type') || null,
+              height_vs_peers: val('height_vs_peers') || null,
+              special_features: valTrim('special_features') || null,
+              signature_look: valTrim('signature_look') || null
+            };
+          }
+
+          // second hero custom object
+          var secondHeroCustom = null;
+          if (hasSecond && secondHeroMode === 'custom') {
+            var traitsRaw = (document.getElementById('second_traits').value || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return !!s; });
+            var markersRaw = (document.getElementById('second_visual_markers').value || '').split(',').map(function (s) { return s.trim(); }).filter(function (s) { return !!s; });
+
+            secondHeroCustom = {
+              type: val('second_type'),
+              type_other_text: (val('second_type') === 'other') ? (valTrim('second_type_other_text') || null) : null,
+              role: val('second_role'),
+              traits: traitsRaw.slice(0, 3),
+              visual_markers: markersRaw.slice(0, 3),
+              unique_prop: valTrim('second_unique_prop') || null
+            };
+          }
+
+          // setting custom object
+          var settingCustom = null;
+          if (settingMode === 'custom') {
+            settingCustom = {
+              type: val('place_type'),
+              type_other_text: (val('place_type') === 'other') ? (valTrim('place_type_other_text') || null) : null,
+              time: val('place_time'),
+              season: val('place_season'),
+              details: valTrim('place_details'),
+              realism: val('place_realism')
+            };
+          }
+
+          var payload = {
+            type: 'storybook_form',
+            lang: currentLang,
+            form_data: {
+              main_hero_name: valTrim('main_hero_name'),
+              main_hero_appearance_mode: mainHeroAppearanceMode,
+              main_hero_appearance: mainHeroAppearance, // null if photo/auto
+
+              second_hero_name: hasSecond ? secondName : null,
+              second_hero_mode: hasSecond ? secondHeroMode : 'none',
+              second_hero_preset_id: (hasSecond && secondHeroMode === 'preset') ? secondHeroPresetId : null,
+              second_hero_custom: (hasSecond && secondHeroMode === 'custom') ? secondHeroCustom : null,
+
+              setting_mode: settingMode,
+              setting_preset_id: (settingMode === 'preset') ? settingPresetId : null,
+              setting_custom: (settingMode === 'custom') ? settingCustom : null,
+
+              age_group: val('age_group'),
+              narrative_style: val('narrative_style'),
+              moral_theme: val('moral_theme'),
+              illustration_style_id: val('illustration_style_id'),
+              language: val('language'),
+
+              ui_language: currentLang,
+              post_submit_photo_requests: postSubmit
+            },
+            telegram: {
+              initData: tg.initData,
+              user: (tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user : null
+            }
+          };
+
+          tg.sendData(JSON.stringify(payload)); 
+         
+        });
+      }
+
+      // --- Init ---
+      applyI18n(currentLang);
+      setActiveLangButton();
+
+      // Default selections
+      setActiveTile(mainHeroModeTiles, mainHeroAppearanceMode);
+      updateMainHeroPanels();
+
+      setActiveTile(secondHeroModeTiles, null);
+      updateSecondHeroPanels();
+
+      setActiveTile(settingModeTiles, settingMode);
+      updateSettingPanels();
+
+      // Ensure “other” wrappers start hidden/visible correctly
+      if (secondType && secondType.value === 'other') show(secondTypeOtherWrap);
+      if (placeType && placeType.value === 'other') show(placeTypeOtherWrap);
+
+      bindEvents();
+    })();
+  </script>
 </body>
 </html>
